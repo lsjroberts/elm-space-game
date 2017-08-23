@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "start": "elm live src/Main.elm --output elm.js --open",
+    "compile": "elm make src/Main.elm --output elm.js || true",
+    "cloc": "cloc --exclude-dir=$(tr '\\n' ',' < .clocignore) ."
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "cloc": "^2.2.0",
+    "elm-test": "^0.18.3"
+  }
+}

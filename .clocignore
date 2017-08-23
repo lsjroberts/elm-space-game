@@ -1,0 +1,13 @@
+.DS_Store
+.clocignore
+.git
+.gitignore
+.vscode
+dist
+docs
+elm.js
+elm-package.json
+package.json
+elm-stuff
+node_modules
+README.md
