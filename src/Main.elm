@@ -60,6 +60,7 @@ type alias Planet =
     , au : Float
     , diameter : Int
     , gravity : Float
+    , mass : Float
     }
 
 
@@ -71,7 +72,7 @@ getPlanetPosition planet =
         half =
             scaled / 2
     in
-        vec2 (scaleAU planet.au - half) (0 - half)
+        vec2 (scaleAU planet.au) 0
 
 
 type alias Rocket =
@@ -87,38 +88,41 @@ init =
     ( { resources = Resources.init
       , time = 0
       , screen = ( 800, 600 )
-      , camera = Camera.fixedWidth 8 ( (scaleAU 1) - (scaleEarth (12750 // 2)), 0 )
+      , camera = Camera.fixedWidth 8 ( scaleAU 1, 0 )
       , keys = []
       , planets =
             [ -- Mercury
-              Planet Color.red 0.39 4879 1
+              Planet Color.red 0.39 4879 1 1
               -- Venus
-            , Planet Color.lightBlue 0.723 12104 1
+            , Planet Color.lightBlue 0.723 12104 1 1
               -- Earth
-            , Planet Color.blue 1 12750 1
+            , Planet Color.blue 1 12750 1 1
               -- Mars
-            , Planet Color.red 1.524 6779 1
+            , Planet Color.red 1.524 6779 1 1
               -- Jupiter
-            , Planet Color.orange 5.2 139822 1
+            , Planet Color.orange 5.2 139822 1 1
               -- Saturn
-            , Planet Color.lightYellow 9.6 116464 1
+            , Planet Color.lightYellow 9.6 116464 1 1
               -- Uranus
-            , Planet Color.lightBlue 19.2 50724 1
+            , Planet Color.lightBlue 19.2 50724 1 1
               -- Neptune
-            , Planet Color.darkBlue 30.1 49244 1
+            , Planet Color.darkBlue 30.1 49244 1 1
             ]
       , rocket =
             let
                 position =
-                    (vec2 ((scaleAU 1) - (scaleEarth (12750 // 2))) (scaleEarth (12750 // 2)))
+                    vec2 (scaleAU 1) (earthSize / 2)
             in
                 { planet = 2
                 , fuel = 100
                 , enginePower = 0
                 , position = position
-                , rotation = 0
+                , rotation = degrees 0
                 , velocity = vec2 0 0
                 , acceleration = vec2 0 0
+                , mass =
+                    -- Saturn V in kg
+                    41000
                 , forces = Dict.fromList []
                 }
       }
@@ -134,7 +138,7 @@ init =
 
 isColliding : Rocket -> Planet -> Bool
 isColliding rocket planet =
-    if Vector2.distanceSquared (getPlanetPosition planet) rocket.position <= toFloat (planet.diameter * planet.diameter) then
+    if Vector2.distance (getPlanetPosition planet) rocket.position <= scaleEarth (planet.diameter // 2) then
         True
     else
         False
@@ -146,6 +150,10 @@ scale =
 
 scaleEarth km =
     ((toFloat km) / 12750) * scale
+
+
+earthSize =
+    scaleEarth 12750
 
 
 scaleAU units =
@@ -214,7 +222,7 @@ renderRocket rocket =
         Render.shapeWithOptions Render.rectangle
             { color = Color.white
             , position = ( x, y, 0 )
-            , size = ( 0.1, 0.05 )
+            , size = ( 0.05, 0.1 )
             , rotation = rocket.rotation
             , pivot = ( 0.5, 0.5 )
             }
@@ -261,9 +269,6 @@ renderPlanet planet =
         scaled =
             scaleEarth planet.diameter
 
-        half =
-            scaled / 2
-
         ( x, y ) =
             Vector2.toTuple (getPlanetPosition planet)
     in
@@ -272,85 +277,17 @@ renderPlanet planet =
             , position = ( x, y, 0 )
             , size = ( scaled, scaled )
             , rotation = 0
-            , pivot = ( 0.5, 0 )
+            , pivot = ( 0.5, 0.5 )
             }
 
 
-renderDebugs : Rocket -> List Planet -> List Renderable
-renderDebugs rocket planets =
-    List.concat
-        [ [ renderDebugPlanet (at planets rocket.planet) ]
-        , renderDebugVelocity rocket
-        , renderDebugAcceleration rocket
-        ]
 
-
-renderDebugPlanet : Maybe Planet -> Renderable
-renderDebugPlanet maybePlanet =
-    Render.shapeWithOptions Render.ring <|
-        case maybePlanet of
-            Just planet ->
-                let
-                    ( x, y ) =
-                        Vector2.toTuple (getPlanetPosition planet)
-                in
-                    { color = Color.white
-                    , position = ( x, y, 0 )
-                    , size =
-                        ( (scaleEarth planet.diameter) * 1.1
-                        , (scaleEarth planet.diameter) * 1.1
-                        )
-                    , rotation = 0
-                    , pivot = ( 0.5, 0.5 )
-                    }
-
-            Nothing ->
-                { color = Color.black
-                , position = ( 0, 0, 0 )
-                , size = ( 0, 0 )
-                , rotation = 0
-                , pivot = ( 0.5, 0.5 )
-                }
-
-
-renderDebugVelocity : Rocket -> List Renderable
-renderDebugVelocity { position, velocity } =
-    [ renderDebugLine (Color.rgb 255 0 128) position 0 ((Vector2.getX velocity) * 100)
-    , renderDebugLine (Color.rgb 255 0 128) position (pi / 2) ((Vector2.getY velocity) * 100)
-    ]
-
-
-renderDebugAcceleration : Rocket -> List Renderable
-renderDebugAcceleration { position, acceleration } =
-    [ renderDebugLine (Color.rgb 0 255 128) position 0 ((Vector2.getX acceleration) * 10000)
-    , renderDebugLine (Color.rgb 0 255 128) position (pi / 2) ((Vector2.getY acceleration) * 10000)
-    ]
-
-
-renderDebugLine : Color.Color -> Vec2 -> Float -> Float -> Renderable
-renderDebugLine color position rotation size =
-    let
-        ( x, y ) =
-            Vector2.toTuple position
-    in
-        Render.shapeWithOptions Render.rectangle
-            { color = color
-            , position = ( x, y, 0 )
-            , size = ( size, 0.01 )
-            , rotation = rotation
-            , pivot = ( 0, 0 )
-            }
-
-
-sprite resources =
-    Render.sprite
-        { texture = Resources.getTexture "assets/textures/foo.png" resources
-        , position = ( 0, 0 )
-        , size = ( 1, 1 )
-        }
-
-
-
+-- sprite resources =
+--     Render.sprite
+--         { texture = Resources.getTexture "assets/textures/foo.png" resources
+--         , position = ( 0, 0 )
+--         , size = ( 1, 1 )
+--         }
 -- UPDATE
 
 
@@ -388,18 +325,45 @@ tickRocket : Float -> List Keyboard.Extra.Key -> Maybe Planet -> Rocket -> Rocke
 tickRocket dt keys maybePlanet rocket =
     rocket
         |> engines keys
+        |> gravity maybePlanet
+        |> surface maybePlanet
         |> rotation dt keys
-        |> acceleration dt maybePlanet
-        |> velocity maybePlanet
-        |> position
+        |> Physics.update dt
 
 
 engines : List Keyboard.Extra.Key -> Rocket -> Rocket
 engines keys rocket =
     if List.any ((==) Keyboard.Extra.Space) keys then
         { rocket | enginePower = 1 }
+            |> Physics.setForce "enginePower" (Physics.toHeading rocket.rotation |> Vector2.scale 2)
     else
         { rocket | enginePower = 0 }
+            |> Physics.setForce "enginePower" (vec2 0 0)
+
+
+gravity : Maybe Planet -> Rocket -> Rocket
+gravity maybePlanet rocket =
+    case maybePlanet of
+        Just planet ->
+            rocket |> Physics.setForce "gravity" (Physics.attract (getPlanetPosition planet) rocket.position)
+
+        Nothing ->
+            rocket |> Physics.removeForce "gravity"
+
+
+surface : Maybe Planet -> Rocket -> Rocket
+surface maybePlanet rocket =
+    case maybePlanet of
+        Just planet ->
+            if isColliding rocket planet then
+                rocket
+                    |> Physics.setForce "surface" (Physics.repulse (getPlanetPosition planet) rocket.position)
+                -- |> Physics.removeVelocity
+            else
+                rocket |> Physics.removeForce "surface"
+
+        Nothing ->
+            rocket |> Physics.removeForce "surface"
 
 
 rotation : Float -> List Keyboard.Extra.Key -> Rocket -> Rocket
@@ -409,90 +373,6 @@ rotation dt keys rocket =
             Keyboard.Extra.wasd keys
     in
         { rocket | rotation = rocket.rotation + (toFloat x) * -0.01 }
-
-
-acceleration : Float -> Maybe Planet -> Rocket -> Rocket
-acceleration dt maybePlanet rocket =
-    let
-        accScale =
-            0.001
-
-        ( x, y ) =
-            Vector2.toTuple rocket.position
-
-        ( accX, accY ) =
-            Vector2.toTuple rocket.acceleration
-
-        plainAcc =
-            Vector2.scale (accScale * dt * rocket.enginePower)
-                (vec2 (0 - (cos rocket.rotation)) (0 - (sin rocket.rotation)))
-
-        planetAcc =
-            case maybePlanet of
-                Just planet ->
-                    let
-                        ( distX, distY ) =
-                            Vector2.toTuple (Vector2.sub (getPlanetPosition planet) rocket.position)
-                    in
-                        Vector2.scale (accScale * dt * planet.gravity) (vec2 (1 / distX) (1 / distY))
-
-                Nothing ->
-                    vec2 0 0
-
-        newAcc =
-            Vector2.add planetAcc plainAcc
-    in
-        { rocket | acceleration = newAcc }
-
-
-velocity : Maybe Planet -> Rocket -> Rocket
-velocity maybePlanet ({ velocity, acceleration, position } as rocket) =
-    case maybePlanet of
-        Just planet ->
-            if isColliding rocket planet then
-                let
-                    planetPosition =
-                        getPlanetPosition planet
-
-                    accX =
-                        if
-                            (((Vector2.getX planetPosition < Vector2.getX position)
-                                && (Vector2.getX acceleration > 0)
-                             )
-                                || ((Vector2.getX planetPosition > Vector2.getX position)
-                                        && (Vector2.getX acceleration < 0)
-                                   )
-                            )
-                        then
-                            Vector2.getX acceleration
-                        else
-                            0
-
-                    accY =
-                        if
-                            (((Vector2.getY planetPosition < Vector2.getY position)
-                                && (Vector2.getY acceleration > 0)
-                             )
-                                || ((Vector2.getY planetPosition > Vector2.getY position)
-                                        && (Vector2.getY acceleration < 0)
-                                   )
-                            )
-                        then
-                            Vector2.getY acceleration
-                        else
-                            0
-                in
-                    { rocket | velocity = Vector2.add velocity (vec2 accX accY) }
-            else
-                { rocket | velocity = Vector2.add velocity acceleration }
-
-        Nothing ->
-            { rocket | velocity = Vector2.add velocity acceleration }
-
-
-position : Rocket -> Rocket
-position rocket =
-    { rocket | position = Vector2.add rocket.position rocket.velocity }
 
 
 
@@ -514,3 +394,85 @@ subscriptions model =
         [ AnimationFrame.diffs ((\dt -> dt / 1000) >> Tick)
         , Sub.map Keys Keyboard.Extra.subscriptions
         ]
+
+
+
+-- DEBUGS
+
+
+renderDebugs : Rocket -> List Planet -> List Renderable
+renderDebugs rocket planets =
+    List.concat
+        [ [ renderDebugPlanet (at planets rocket.planet) ]
+        , renderDebugVelocity rocket
+        , renderDebugAcceleration rocket
+        , renderDebugForces rocket
+        ]
+
+
+renderDebugPlanet : Maybe Planet -> Renderable
+renderDebugPlanet maybePlanet =
+    Render.shapeWithOptions Render.ring <|
+        case maybePlanet of
+            Just planet ->
+                let
+                    ( x, y ) =
+                        Vector2.toTuple (getPlanetPosition planet)
+                in
+                    { color = Color.white
+                    , position = ( x, y, 0 )
+                    , size =
+                        ( (scaleEarth planet.diameter) * 1.1
+                        , (scaleEarth planet.diameter) * 1.1
+                        )
+                    , rotation = 0
+                    , pivot = ( 0.5, 0.5 )
+                    }
+
+            Nothing ->
+                { color = Color.black
+                , position = ( 0, 0, 0 )
+                , size = ( 0, 0 )
+                , rotation = 0
+                , pivot = ( 0.5, 0.5 )
+                }
+
+
+renderDebugVelocity : Rocket -> List Renderable
+renderDebugVelocity { position, velocity } =
+    [ renderDebugLine (Color.rgb 255 0 128) position 0 ((Vector2.getX velocity) * 100)
+    , renderDebugLine (Color.rgb 255 0 128) position (degrees 90) ((Vector2.getY velocity) * 100)
+    ]
+
+
+renderDebugAcceleration : Rocket -> List Renderable
+renderDebugAcceleration { position, acceleration } =
+    [ renderDebugLine (Color.rgb 0 255 128) position 0 ((Vector2.getX acceleration) * 10000)
+    , renderDebugLine (Color.rgb 0 255 128) position (degrees 90) ((Vector2.getY acceleration) * 10000)
+    ]
+
+
+renderDebugForces : Rocket -> List Renderable
+renderDebugForces { position, forces } =
+    let
+        renderDebugForce ( name, force ) =
+            renderDebugLine (Color.rgb 0 128 255) position (Physics.toRotation force) (Vector2.distance (vec2 0 0) force)
+    in
+        forces
+            |> Dict.toList
+            |> List.map renderDebugForce
+
+
+renderDebugLine : Color.Color -> Vec2 -> Float -> Float -> Renderable
+renderDebugLine color position rotation size =
+    let
+        ( x, y ) =
+            Vector2.toTuple position
+    in
+        Render.shapeWithOptions Render.rectangle
+            { color = color
+            , position = ( x, y, 0 )
+            , size = ( size, 0.01 )
+            , rotation = rotation
+            , pivot = ( 0, 0 )
+            }
